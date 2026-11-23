@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heart Animation</title>
+<style>
+html,body{height:100%;margin:0;background:#000;overflow:hidden}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/* ===== settings ===== */
+const CONFIG = {
+  dr: null,          // heart point spacing (null = auto: 0.04 desktop / 0.08 phone). Smaller = more particles
+  traceCount: null,  // trail length (null = auto: 50 desktop / 22 phone)
+  traceK: 0.4,       // trail softness
+  timeDelta: 0.01    // beat speed
+};
+/* ==================== */
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const rand = Math.random, phone = Math.min(innerWidth, innerHeight) < 650;
+const dr = CONFIG.dr || (phone ? .08 : .04), traceCount = CONFIG.traceCount || (phone ? 22 : 50);
+let W, H, D, S, time = 0;
+
+function heartPos(r) {
+  return [Math.pow(Math.sin(r), 3), -(15 * Math.cos(r) - 5 * Math.cos(2 * r) - 2 * Math.cos(3 * r) - Math.cos(4 * r))];
+}
+const origin = [];
+[[210, 13], [150, 9], [90, 5]].forEach(([sx, sy]) => {
+  for (let i = 0; i < Math.PI * 2; i += dr) { const p = heartPos(i); origin.push([p[0] * sx, p[1] * sy]); }
+});
+const count = origin.length, target = origin.map(() => [0, 0]);
+
+function resize() {
+  D = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+  cv.width = W * D; cv.height = H * D; ctx.setTransform(D, 0, 0, D, 0, 0);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  S = Math.min(W / 470, H / 440, 1.7);
+}
+addEventListener('resize', resize); resize();
+
+function pulse(k) {
+  for (let i = 0; i < count; i++) {
+    target[i][0] = k * origin[i][0] * S + W / 2;
+    target[i][1] = k * origin[i][1] * S + H / 2 + 12 * S;
+  }
+}
+
+const parts = [];
+for (let i = 0; i < count; i++) {
+  const x = rand() * W, y = rand() * H;
+  const p = {
+    vx: 0, vy: 0, speed: rand() + 5, q: ~~(rand() * count), D: 2 * (i % 2) - 1,
+    force: .2 * rand() + .7,
+    f: 'hsla(0,' + ~~(40 * rand() + 60) + '%,' + ~~(60 * rand() + 20) + '%,.3)',
+    trace: []
+  };
+  for (let k = 0; k < traceCount; k++) p.trace[k] = { x, y };
+  parts.push(p);
+}
+
+function step() {
+  const n = -Math.cos(time);
+  pulse((1 + n) * .5);
+  time += (Math.sin(time) < 0 ? 9 : (n > .8 ? .2 : 1)) * CONFIG.timeDelta;
+  ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(0, 0, W, H);
+  for (const p of parts) {
+    const u = target[p.q], dx = p.trace[0].x - u[0], dy = p.trace[0].y - u[1], len = Math.sqrt(dx * dx + dy * dy) || 1;
+    if (len < 10) {
+      if (rand() > .95) p.q = ~~(rand() * count);
+      else { if (rand() > .99) p.D *= -1; p.q += p.D; p.q %= count; if (p.q < 0) p.q += count; }
+    }
+    p.vx += -dx / len * p.speed; p.vy += -dy / len * p.speed;
+    p.trace[0].x += p.vx; p.trace[0].y += p.vy;
+    p.vx *= p.force; p.vy *= p.force;
+    for (let k = 0; k < p.trace.length - 1; k++) {
+      const T = p.trace[k], N = p.trace[k + 1];
+      N.x -= CONFIG.traceK * (N.x - T.x); N.y -= CONFIG.traceK * (N.y - T.y);
+    }
+    ctx.fillStyle = p.f;
+    for (let k = 0; k < p.trace.length; k++) ctx.fillRect(p.trace[k].x, p.trace[k].y, 1, 1);
+  }
+}
+
+/* fixed 60 steps/sec so it looks the same on 60/90/120 Hz screens */
+let last = performance.now(), acc = 0;
+(function loop(now) {
+  acc += Math.min(now - last, 100); last = now;
+  while (acc >= 16.67) { step(); acc -= 16.67; }
+  requestAnimationFrame(loop);
+})(last);
+</script>
+</body>
+</html>
