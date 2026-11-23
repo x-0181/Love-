@@ -11,6 +11,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </head>
 <body>
 <canvas id="c"></canvas>
+<audio id="bgMusic" src="music.mp3" loop preload="auto"></audio>
 <script>
 /* ===== settings ===== */
 const CONFIG = {
@@ -93,6 +94,15 @@ let last = performance.now(), acc = 0;
   while (acc >= 16.67) { step(); acc -= 16.67; }
   requestAnimationFrame(loop);
 })(last);
+
+/* start background music on first user interaction */
+const bgMusic = document.getElementById('bgMusic');
+function playMusicOnce() {
+  if (!bgMusic) return;
+  bgMusic.play().catch(() => {});
+}
+window.addEventListener('pointerdown', playMusicOnce, { once: true });
+window.addEventListener('keydown', playMusicOnce, { once: true });
 </script>
 </body>
 </html>
